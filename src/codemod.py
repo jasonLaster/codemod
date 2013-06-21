@@ -45,6 +45,8 @@ Options (all optional) include:
     default, codemod applies the regex one line at a time.
   -d
     The path whose ancestor files are to be explored.  Defaults to current dir.
+  --files
+    A comma-delimited list of files to be explored.
   --start
     A path:line_number-formatted position somewhere in the hierarchy from which
     to being exploring, or a percentage (e.g. "--start 25%") of the way through
@@ -267,6 +269,7 @@ class Query:
                start=None,
                end=None,
                root_directory='.',
+               path_list=None,
                path_filter=_default_path_filter):
     """
     @param suggestor            A function that takes a list of lines and
@@ -287,6 +290,7 @@ class Query:
                                 used for start (where None means 'traverse to
                                 the end of the hierarchy).
     @param root_directory       The path whose ancestor files are to be explored.
+    @param path_list            Comma-delimited list of files that should be explored.
     @param path_filter          Given a path, returns True or False.  If False,
                                 the entire file is ignored.
     """
@@ -294,6 +298,7 @@ class Query:
     self._start             = start
     self._end               = end
     self.root_directory     = root_directory
+    self.path_list          = path_list
     self.path_filter        = path_filter
     self._all_patches_cache = None
 
@@ -356,9 +361,12 @@ class Query:
     start_pos = self.start_position or Position(None, None)
     end_pos   = self.end_position   or Position(None, None)
 
-    path_list = Query._walk_directory(self.root_directory)
-    path_list = Query._sublist(path_list, start_pos.path, end_pos.path)
-    path_list = (path for path in path_list if
+    if self.path_list:
+      path_list = self.path_list
+    else:
+      path_list = Query._walk_directory(self.root_directory)
+      path_list = Query._sublist(path_list, start_pos.path, end_pos.path)
+      path_list = (path for path in path_list if
                  Query._path_looks_like_code(path) and self.path_filter(path))
 
     for path in path_list:
@@ -751,7 +759,7 @@ def _parse_command_line():
   try:
     opts, remaining_args = getopt.gnu_getopt(
         sys.argv[1:], 'md:',
-        ['start=', 'end=', 'extensions=', 'editor=', 'count', 'test'])
+        ['start=', 'end=', 'extensions=', 'editor=', 'count', 'test', 'files='])
   except getopt.error:
     raise _UsageException()
   opts = dict(opts)
@@ -775,6 +783,8 @@ def _parse_command_line():
     query_options['end'] = opts['--end']
   if '-d' in opts:
     query_options['root_directory'] = opts['-d']
+  if '--files' in opts:
+    query_options['path_list'] = opts['--files'].split(',')
   if '--extensions' in opts:
     query_options['path_filter'] = (
         path_filter(extensions=opts['--extensions'].split(',')))
